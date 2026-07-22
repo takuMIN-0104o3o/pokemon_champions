@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="referrer" content="no-referrer">
+    <title>マスターデータ | ポケモンチャンピオンズ 対戦補助ツール</title>
+
+    <!-- PWA: ホーム画面追加・アイコン設定 -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0f1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="対戦補助ツール">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css?v9">
+    <style>
+      /* マスターデータ専用の追加スタイル */
+      .master-container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      .master-header-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+      .nav-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s ease;
+      }
+      .nav-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+      }
+      
+      .table-wrapper {
+        background: rgba(25, 25, 35, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+        overflow-x: auto;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+      
+      .master-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        min-width: 900px;
+      }
+      
+      .master-table th, .master-table td {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      
+      .master-table th {
+        background: rgba(0, 0, 0, 0.2);
+        font-weight: 600;
+        color: #a0a0b0;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        white-space: nowrap;
+      }
+      
+      .master-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      
+      .poke-name-col {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      
+      .stat-val {
+        display: inline-block;
+        width: 28px;
+        text-align: right;
+        font-family: 'Inter', sans-serif;
+      }
+      .stat-total {
+        font-weight: 800;
+        color: #ffd700;
+      }
+      
+      .top-list {
+        margin: 0;
+        padding-left: 1.2rem;
+        font-size: 0.85rem;
+        color: #d0d0d0;
+      }
+      .top-list li {
+        margin-bottom: 0.2rem;
+      }
+      
+      .type-badge-small {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-right: 0.2rem;
+      }
+      
+      .master-tab-btn {
+        background: transparent;
+        border: none;
+        color: #a0a0b0;
+        padding: 0.5rem 1.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+      .master-tab-btn.active {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>ポケモンチャンピオンズ <span>マスターデータ</span></h1>
+    </header>
+
+    <main class="master-container">
+      <div class="master-header-actions">
+        <a href="./index.html" class="nav-btn">← 戻る</a>
+        <div class="tab-switcher" style="display:flex; background:rgba(0,0,0,0.3); border-radius:8px; padding:0.3rem;">
+          <button id="tab-pokemon" class="master-tab-btn active">ポケモン</button>
+          <button id="tab-item" class="master-tab-btn">持ち物</button>
+        </div>
+        <div class="filter-controls" style="display:flex; align-items:center; gap:0.5rem;">
+          <form id="csv-upload-form" style="display:flex; align-items:center; gap:0.5rem; background:rgba(0,0,0,0.3); padding:0.3rem 0.5rem; border-radius:8px;">
+            <input type="file" id="csv-file" accept=".csv" style="font-size:0.8rem; width:180px; color:#a0a0b0;">
+            <button type="submit" class="nav-btn" style="padding:0.3rem 0.6rem; font-size:0.8rem; border:none; cursor:pointer;" id="csv-submit-btn">CSV読込</button>
+          </form>
+          <label style="color:#a0a0b0; font-size: 0.9rem; display:flex; align-items:center; gap:0.3rem; cursor:pointer;">
+            <input type="checkbox" id="filter-champion" style="width:1rem; height:1rem;">
+            採用フラグ限定
+          </label>
+          <input type="text" id="search-input" class="poke-name-input" placeholder="検索..." style="width: 150px;">
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="master-table" id="pokemon-table">
+          <thead>
+            <tr>
+              <th>ポケモン名</th>
+              <th>タイプ</th>
+              <th>採用フラグ</th>
+              <th title="HP">H</th>
+              <th title="こうげき">A</th>
+              <th title="ぼうぎょ">B</th>
+              <th title="とくこう">C</th>
+              <th title="とくぼう">D</th>
+              <th title="すばやさ">S</th>
+              <th>合計</th>
+              <th>採用技 (Top 3)</th>
+              <th>持ち物 (Top 3)</th>
+            </tr>
+          </thead>
+          <tbody id="master-tbody">
+            <tr><td colspan="12" style="text-align: center;">データを読み込み中...</td></tr>
+          </tbody>
+        </table>
+
+        <table class="master-table" id="item-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>持ち物名</th>
+              <th>カテゴリ</th>
+              <th>採用フラグ</th>
+            </tr>
+          </thead>
+          <tbody id="item-tbody">
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <script type="module" src="./master.js?v9"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="referrer" content="no-referrer">
+    <title>ポケモンチャンピオンズ 対戦補助ツール</title>
+
+    <!-- PWA: ホーム画面追加・アイコン設定 -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0f1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="対戦補助ツール">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css?v9">
+  </head>
+  <body>
+    <div class="rotate-prompt">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="6" y="2" width="12" height="20" rx="2" transform="rotate(90 12 12)"/>
+        <path d="M12 2v2M12 20v2" opacity="0"/>
+      </svg>
+      <p>このアプリはスマホを<b>横向き</b>にして<br>使用してください</p>
+      <span class="rotate-sub">📱 → 🔄 → 📱‎‏‎‎</span>
+    </div>
+    <header class="app-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;">
+      <h1 style="margin: 0;">ポケモンチャンピオンズ <span>対戦補助ツール</span></h1>
+      <div style="display:flex; gap:0.5rem;">
+        <button onclick="openPhotoImport()" class="nav-btn" style="background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4); color: #93c5fd; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor:pointer;">📷 写真から選出</button>
+        <a href="./master.html" class="nav-btn" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.2s ease;">マスターデータ</a>
+      </div>
+    </header>
+
+    <!-- 写真から選出モーダル -->
+    <div id="photo-import-modal" style="display:none; position:fixed; inset:0; z-index:1500; background:rgba(0,0,0,0.75); align-items:center; justify-content:center;">
+      <div class="pi-card">
+        <div class="pi-card-header">
+          <h3>📷 写真からパーティを判定</h3>
+          <button onclick="closePhotoImport()" class="pi-close-btn">&times;</button>
+        </div>
+        <div class="pi-card-body" id="pi-card-body">
+
+          <!-- STEP1: アップロード -->
+          <div id="pi-step-upload" class="pi-step">
+            <p class="pi-desc">選出画面（味方・敵あわせて12体が表示された画面）を認識します。カメラでその場で撮る方法が一番精度が高くおすすめです。</p>
+            <button onclick="openPhotoCamera()" class="pi-upload-btn" style="display:block; width:100%; text-align:center; margin-bottom:0.5rem; border:none; cursor:pointer;">📷 カメラでその場で撮影（推奨）</button>
+            <label class="pi-upload-btn pi-upload-btn-secondary">
+              アルバムから選択
+              <input type="file" id="pi-file-input" accept="image/*">
+            </label>
+            <p class="pi-note">※アイコンの見た目から自動で候補を出しますが、完全ではないため最後に必ず確認・修正できます。現状イラスト調アイコンのデータが約210種のみのため、対応していないポケモンは候補に出ません（その場合は手動で選び直してください）。</p>
+          </div>
+
+          <!-- STEP1b: ライブカメラで選出画面に枠を合わせて撮影 -->
+          <div id="pi-step-camera" class="pi-step" style="display:none;">
+            <p class="pi-desc">画面の枠に、Switchの選出画面（左＝自陣6体・右＝敵陣6体）がぴったり収まるように合わせてシャッターを押してください。</p>
+            <div id="pi-camera-wrap">
+              <video id="pi-video" autoplay playsinline muted></video>
+              <div id="pi-camera-guides"></div>
+            </div>
+            <div class="pi-tap-actions">
+              <button onclick="closePhotoCamera()" class="pi-btn pi-btn-ghost">キャンセル</button>
+              <button onclick="photoCameraShutter()" class="pi-btn pi-btn-primary" id="pi-shutter-btn">📸 シャッター</button>
+            </div>
+          </div>
+
+          <!-- STEP2: インデックス準備中 -->
+          <div id="pi-step-index" class="pi-step" style="display:none;">
+            <p class="pi-desc">認識用データを準備しています（初回のみ・数十秒かかります）…</p>
+            <div class="pi-progress-track"><div id="pi-progress-bar" class="pi-progress-bar"></div></div>
+            <p id="pi-progress-text" class="pi-note">0 / 0</p>
+          </div>
+
+          <!-- STEP3: タップして範囲指定（アルバムから選択した場合のみ使用） -->
+          <div id="pi-step-tap" class="pi-step" style="display:none;">
+            <p id="pi-tap-instruction" class="pi-desc">1 / 4：<b>自陣 1体目（一番上）</b> のアイコンを、写真の上でドラッグして囲んでください</p>
+            <div id="pi-canvas-wrap"><canvas id="pi-canvas"></canvas></div>
+            <div class="pi-tap-actions">
+              <button onclick="photoImportSkip()" class="pi-btn pi-btn-ghost">この面はまとめてスキップ</button>
+              <button onclick="photoImportUndo()" class="pi-btn pi-btn-ghost">ひとつ戻る</button>
+            </div>
+            <p class="pi-note">1体目と6体目（一番上と一番下）だけ囲めば、間の4体は自動で計算します。</p>
+          </div>
+
+          <!-- STEP4: 結果確認 -->
+          <div id="pi-step-confirm" class="pi-step" style="display:none;">
+            <p class="pi-desc">候補を確認してください。違う場合はタップして候補一覧から選び直せます。</p>
+            <div id="pi-results-list" class="pi-results-list"></div>
+            <button onclick="applyPhotoImport()" class="pi-btn pi-btn-primary" style="width:100%; margin-top:0.6rem;">この内容でパーティに反映する</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <main class="app-container">
+      <!-- 1. 左列: 自陣 (6枠) -->
+      <section class="column column-left">
+        <div class="column-header" style="justify-content:space-between; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <h2 style="margin:0;">自陣パーティ</h2>
+            <span class="badge">6枠</span>
+          </div>
+          <button onclick="clearMyParty()" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; padding:0.15rem 0.4rem; border-radius:4px; font-size:0.7rem; cursor:pointer;" title="自陣を空にする">Clear</button>
+        </div>
+        <!-- プリセットパネル -->
+        <div id="preset-panel" style="margin-bottom:0.4rem; padding:0.4rem; background:rgba(0,0,0,0.15); border-radius:8px; border:1px solid rgba(255,255,255,0.06);"></div>
+        <div class="party-container" id="my-party-container">
+          <!-- JSで自動生成 -->
+        </div>
+      </section>
+
+      <!-- 2. 中央列: ダメージ計算 -->
+      <section class="column column-center">
+        <div class="column-header" style="justify-content:space-between; margin-bottom:0.3rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <h2 style="margin:0;">ダメージ計算</h2>
+            <span class="badge calc-badge">Battle</span>
+          </div>
+          <div style="display:flex; gap:0.2rem;">
+            <button id="dir-atk" class="dir-btn dir-btn-active" onclick="setDirection('atk')" style="padding:0.15rem 0.4rem; font-size:0.7rem;">自陣→</button>
+            <button id="dir-def" class="dir-btn" onclick="setDirection('def')" style="padding:0.15rem 0.4rem; font-size:0.7rem;">←敵陣</button>
+          </div>
+        </div>
+        <div id="weather-panel" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.3rem; margin-bottom:0.5rem;"></div>
+        <div class="calculator-container" id="calculator-container">
+          <div class="calc-vs-board">
+            <div class="vs-side my-side" id="calc-my-side">
+              <div class="empty-state">自陣から選択</div>
+            </div>
+            <div class="vs-icon" style="font-size:1.0rem; padding:0.2rem;">VS</div>
+            <div class="vs-side enemy-side" id="calc-enemy-side">
+              <div class="empty-state">敵陣から選択</div>
+            </div>
+          </div>
+          <!-- タイプレジスタンス表示領域 -->
+          <div style="display:flex; justify-content:space-between; margin:0.3rem 0;">
+            <div id="type-resist-my" style="flex:1; margin-right:0.5rem;"></div>
+            <div id="type-resist-enemy" style="flex:1; margin-left:0.5rem;"></div>
+          </div>
+          <!-- 積み補正パネル -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; margin:0.3rem 0;">
+            <div id="rank-my-panel" class="rank-panel">
+              <div class="rank-panel-title">自陣 積み補正</div>
+              <div class="rank-grid" id="rank-my"></div>
+            </div>
+            <div id="rank-enemy-panel" class="rank-panel">
+              <div class="rank-panel-title">敵陣 積み補正</div>
+              <div class="rank-grid" id="rank-enemy"></div>
+            </div>
+          </div>
+          <!-- 技選択 -->
+          <div id="calc-moves" class="calc-moves-grid"></div>
+          <div id="hit-count-selector" style="display:none; gap:0.3rem; align-items:center; margin-top:0.3rem; margin-bottom:0.3rem;"></div>
+          <div class="calc-result" id="calc-result">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:0.5rem;">
+              <h3 style="margin:0; font-size:0.9rem;">計算結果</h3>
+              <div class="damage-stats" id="damage-stats" style="margin-top:0; border-top:none; padding:0; gap:0.5rem; flex-direction:row;">
+                <span class="dmg-percent">--% ~ --%</span>
+                <span class="dmg-rolls">確--発</span>
+              </div>
+            </div>
+            <div class="damage-bar-container" style="position:relative; margin-bottom:0.8rem; margin-top:0.8rem;">
+              <div class="damage-bar-bg" style="background:rgba(255,255,255,0.1); height:12px; border-radius:6px; position:relative;">
+                <div id="damage-bar-remain" style="background:#22c55e; width:100%; height:100%; transition:all 0.3s ease; border-radius:6px;"></div>
+                <div id="damage-marker-min" style="position:absolute; top:-14px; font-size:0.55rem; color:#f87171; transform:translateX(-50%); display:none;">▽</div>
+                <div id="damage-marker-max" style="position:absolute; top:-14px; font-size:0.55rem; color:#93c5fd; transform:translateX(-50%); display:none;">▽</div>
+              </div>
+            </div>
+            <div class="damage-log" id="damage-log" style="font-size:0.68rem; padding:0.3rem; line-height:1.2; letter-spacing:-0.02em;">計算待機中...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 右列: 敵陣 (6枠) + サジェスト -->
+      <section class="column column-right" style="padding:0.75rem; gap:0;">
+        <div class="column-header" style="justify-content:space-between; padding:0 0 0.5rem 0; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <h2 style="margin:0;">敵陣</h2>
+            <span class="badge enemy-badge">6枠</span>
+          </div>
+          <button onclick="clearEnemyParty()" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; padding:0.15rem 0.4rem; border-radius:4px; font-size:0.7rem; cursor:pointer;" title="敵陣を空にする">Clear</button>
+          <button onclick="toggleSuggestionPanel()" id="suggestion-toggle-btn" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.7rem; cursor:pointer;">サジェスト</button>
+        </div>
+        <div style="display:flex; flex:1; gap:0.5rem; overflow:hidden; min-height:0;">
+          <!-- 敵6体を縦1列 -->
+          <div id="enemy-party-container" class="party-container" style="flex:1; min-width:0; overflow-y:auto;"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- サジェストパネル: 持ち物選択と同じく画面最前面のオーバーレイ表示 -->
+    <div id="suggestion-panel" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(5px); z-index:1000; justify-content:center; align-items:center;">
+      <div style="background:rgba(25,25,35,0.95); border:1px solid rgba(255,255,255,0.2); border-radius:12px; width:520px; max-width:92vw; height:80vh; max-height:520px; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,0.8); padding:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; flex-shrink:0;">
+          <h3 style="font-size:0.95rem; margin:0; color:#fff;">頻出データ・サジェスト</h3>
+          <button onclick="toggleSuggestionPanel()" style="background:none; border:none; color:#a0a0b0; font-size:1.4rem; line-height:1; cursor:pointer; padding:0 0.3rem;">&times;</button>
+        </div>
+        <div id="suggestion-content" class="suggestion-content" style="flex:1; overflow-y:auto;">
+          <p class="empty-state" style="font-size:0.8rem;">敵陣のポケモンを選択すると表示されます。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 五十音ピッカー モーダル -->
+    <div id="gojuon-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(5px); z-index:1000; justify-content:center; align-items:center;">
+      <div style="background:rgba(25,25,35,0.95); border:1px solid rgba(255,255,255,0.2); border-radius:12px; width:700px; max-width:90vw; height:70vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,0.8);">
+        <div style="padding:1rem; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
+          <h3 id="modal-title" style="margin:0; font-size:1.1rem; color:#fff;">選択してください</h3>
+          <button id="modal-close-btn" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">&times;</button>
+        </div>
+        <div style="display:flex; flex:1; overflow:hidden;">
+          <!-- 左側: タブ -->
+          <div style="width:60px; border-right:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); overflow-y:auto; display:flex; flex-direction:column;" id="modal-tabs">
+            <!-- JSで生成 -->
+          </div>
+          <!-- 右側: 候補リスト -->
+          <div style="flex:1; padding:1rem; overflow-y:auto; display:flex; flex-direction:column;">
+            <input type="text" id="modal-search" placeholder="名前で絞り込み..." style="width:100%; padding:0.5rem; margin-bottom:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.3); color:#fff; font-size:1rem;">
+            <div id="modal-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:0.5rem; align-content:start;">
+              <!-- JSで生成 -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Component Templates -->
+    <template id="my-party-slot-template">
+      <div class="party-slot" style="font-size: 0.8rem; padding: 0.4rem;">
+        <div style="display:flex; gap:0.3rem; align-items:center; margin-bottom:0.3rem;">
+          <button class="battle-btn" style="padding:0.15rem 0.4rem; font-size:0.7rem; flex-shrink:0; white-space:nowrap;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            出撃
+          </button>
+          <img class="poke-icon" style="width:28px; height:28px; object-fit:contain; flex-shrink:0; display:none;" alt="">
+          <img class="mega-icon" src="./mega-icon.png" style="width:22px; height:22px; object-fit:contain; flex-shrink:0; display:none; cursor:pointer; border-radius:50%;" alt="メガシンカ">
+          <img class="form-change-icon" src="./form-icon.svg" style="width:22px; height:22px; object-fit:contain; flex-shrink:0; display:none; cursor:pointer; border-radius:50%;" alt="フォルムチェンジ">
+          <div class="my-types types-container" style="display:flex; gap:0.15rem; flex-shrink:0;"></div>
+          <input type="text" class="poke-name-input autocomplete-input" placeholder="ポケモン名" style="font-size:0.85rem; padding:0.2rem 0.3rem; flex:1; min-width:0;" readonly>
+          <input type="text" class="poke-ability-input action-ability-input" placeholder="特性" style="font-size:0.75rem; padding:0.2rem 0.3rem; width:50px; flex:none; min-width:0;" readonly>
+        </div>
+        <div class="slot-body">
+          <div style="margin-bottom:0.25rem; display:grid; grid-template-columns:1fr 1fr; gap:0.25rem;">
+            <input type="text" class="poke-item-input action-item-input" placeholder="持ち物" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly>
+            <input type="text" class="poke-nature-input action-nature-input" placeholder="性格" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly>
+          </div>
+          
+          <div class="status-grid" style="display:grid; grid-template-columns:20px repeat(6,1fr); gap:1px; text-align:center; font-size:0.68rem; margin-bottom:0.25rem;">
+            <div style="color:#a0a0b0;"></div><div>H</div><div>A</div><div>B</div><div>C</div><div>D</div><div>S</div>
+            
+            <div style="color:#6b7280;">種</div>
+            <div class="bs-h">-</div><div class="bs-a">-</div><div class="bs-b">-</div>
+            <div class="bs-c">-</div><div class="bs-d">-</div><div class="bs-s">-</div>
+            
+            <div style="color:#6b7280;">努</div>
+            <div class="ev-cell"><div class="ev-wheel" data-stat="h"></div></div>
+            <div class="ev-cell"><div class="ev-wheel" data-stat="a"></div></div>
+            <div class="ev-cell"><div class="ev-wheel" data-stat="b"></div></div>
+            <div class="ev-cell"><div class="ev-wheel" data-stat="c"></div></div>
+            <div class="ev-cell"><div class="ev-wheel" data-stat="d"></div></div>
+            <div class="ev-cell"><div class="ev-wheel" data-stat="s"></div></div>
+            
+            <div style="color:#60a5fa;">実</div>
+            <div class="rv-h" style="font-weight:bold; color:#60a5fa;">-</div>
+            <div class="rv-a" style="font-weight:bold; color:#60a5fa;">-</div>
+            <div class="rv-b" style="font-weight:bold; color:#60a5fa;">-</div>
+            <div class="rv-c" style="font-weight:bold; color:#60a5fa;">-</div>
+            <div class="rv-d" style="font-weight:bold; color:#60a5fa;">-</div>
+            <div class="rv-s" style="font-weight:bold; color:#60a5fa;">-</div>
+          </div>
+          <div class="ev-total-label" style="font-size:0.65rem; text-align:right; margin-bottom:0.25rem; color:#a0a0b0;">努力値 0/66</div>
+          
+          <div class="moves-container" style="display:grid; grid-template-columns:1fr 1fr; gap:0.25rem;">
+            <div class="move-row"><span class="move-type-icon" data-move-idx="0"></span><input type="text" class="move-input" placeholder="技1" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly></div>
+            <div class="move-row"><span class="move-type-icon" data-move-idx="1"></span><input type="text" class="move-input" placeholder="技2" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly></div>
+            <div class="move-row"><span class="move-type-icon" data-move-idx="2"></span><input type="text" class="move-input" placeholder="技3" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly></div>
+            <div class="move-row"><span class="move-type-icon" data-move-idx="3"></span><input type="text" class="move-input" placeholder="技4" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly></div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <template id="enemy-slot-template">
+      <div class="party-slot enemy-slot" style="font-size:0.8rem; padding:0.4rem;">
+        <div style="display:flex; gap:0.3rem; align-items:center; margin-bottom:0.3rem;">
+          <button class="battle-btn" style="padding:0.15rem 0.4rem; font-size:0.7rem; flex-shrink:0; white-space:nowrap;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+            対面
+          </button>
+          <img class="poke-icon" style="width:28px; height:28px; object-fit:contain; flex-shrink:0; display:none;" alt="">
+          <img class="mega-icon" src="./mega-icon.png" style="width:22px; height:22px; object-fit:contain; flex-shrink:0; display:none; cursor:pointer; border-radius:50%;" alt="メガシンカ">
+          <img class="form-change-icon" src="./form-icon.svg" style="width:22px; height:22px; object-fit:contain; flex-shrink:0; display:none; cursor:pointer; border-radius:50%;" alt="フォルムチェンジ">
+          <div class="enemy-types types-container" style="display:flex; gap:0.15rem; flex-shrink:0;"></div>
+          <input type="text" class="poke-name-input autocomplete-input" placeholder="敵ポケモン名" style="font-size:0.85rem; padding:0.2rem 0.3rem; flex:1; min-width:0;" readonly>
+          <input type="text" class="poke-ability-input action-ability-input" placeholder="特性" style="font-size:0.75rem; padding:0.2rem 0.3rem; width:50px; flex:none; min-width:0;" readonly>
+        </div>
+        <div class="slot-body">
+          <div style="margin-bottom:0.25rem; display:grid; grid-template-columns:1fr 1fr; gap:0.25rem;">
+            <input type="text" class="poke-item-input action-item-input" placeholder="持ち物" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly>
+            <input type="text" class="poke-nature-input action-nature-input" placeholder="性格" style="padding:0.2rem 0.3rem; font-size:0.75rem;" readonly>
+          </div>
+
+          <div class="status-grid" style="display:grid; grid-template-columns:20px repeat(6,1fr); gap:1px; text-align:center; font-size:0.68rem; margin-bottom:0.25rem;">
+             <div style="color:#a0a0b0;"></div><div>H</div><div>A</div><div>B</div><div>C</div><div>D</div><div>S</div>
+             <div style="color:#6b7280;">種</div>
+             <div class="bs-h">-</div><div class="bs-a">-</div><div class="bs-b">-</div>
+             <div class="bs-c">-</div><div class="bs-d">-</div><div class="bs-s">-</div>
+
+             <div style="color:#6b7280;">努</div>
+             <div class="ev-cell"><div class="ev-wheel" data-stat="h"></div></div>
+             <div class="ev-cell"><div class="ev-wheel" data-stat="a"></div></div>
+             <div class="ev-cell"><div class="ev-wheel" data-stat="b"></div></div>
+             <div class="ev-cell"><div class="ev-wheel" data-stat="c"></div></div>
+             <div class="ev-cell"><div class="ev-wheel" data-stat="d"></div></div>
+             <div class="ev-cell"><div class="ev-wheel" data-stat="s"></div></div>
+
+             <div style="color:#60a5fa;">実</div>
+             <div class="rv-h" style="font-weight:bold; color:#60a5fa;">-</div>
+             <div class="rv-a" style="font-weight:bold; color:#60a5fa;">-</div>
+             <div class="rv-b" style="font-weight:bold; color:#60a5fa;">-</div>
+             <div class="rv-c" style="font-weight:bold; color:#60a5fa;">-</div>
+             <div class="rv-d" style="font-weight:bold; color:#60a5fa;">-</div>
+             <div class="rv-s" style="font-weight:bold; color:#60a5fa;">-</div>
+          </div>
+          <div class="ev-total-label" style="font-size:0.65rem; text-align:right; margin-bottom:0.25rem; color:#a0a0b0;">努力値 0/66</div>
+
+          <div class="moves-container" style="display:grid; grid-template-columns:1fr 1fr; gap:0.2rem; margin-top:0.25rem;">
+            <div class="move-row"><span class="move-type-icon" data-move-idx="0"></span><input type="text" class="move-input" placeholder="想定技1" style="padding:0.2rem 0.3rem; font-size:0.72rem;" readonly></div>
+            <div class="move-row"><span class="move-type-icon" data-move-idx="1"></span><input type="text" class="move-input" placeholder="想定技2" style="padding:0.2rem 0.3rem; font-size:0.72rem;" readonly></div>
+            <div class="move-row"><span class="move-type-icon" data-move-idx="2"></span><input type="text" class="move-input" placeholder="想定技3" style="padding:0.2rem 0.3rem; font-size:0.72rem;" readonly></div>
+            <div class="move-row"><span class="move-type-icon" data-move-idx="3"></span><input type="text" class="move-input" placeholder="想定技4" style="padding:0.2rem 0.3rem; font-size:0.72rem;" readonly></div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <script type="module" src="./main.js?v9"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

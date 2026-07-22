@@ -1,0 +1,31 @@
+{
+  "name": "ポケモンチャンピオンズ 対戦補助ツール",
+  "short_name": "対戦補助ツール",
+  "description": "ポケモン対戦分析・パーティ管理アシスタント",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
